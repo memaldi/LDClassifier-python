@@ -83,7 +83,7 @@ if __name__ == "__main__":
     # counts = lines.map(lambda x: generate_edges(x, graph_table_name, table_name, ac_edge_id))
     # output = counts.collect()
 
-    # write output file
+    # Writing output file
 
     stop = False
     graph_table = connection.table(graph_table_name)
@@ -99,6 +99,7 @@ if __name__ == "__main__":
 
         f = open('%s/%s-%s' % (SUBDUE_OUTPUT_DIR, offset, limit-1), 'w')
 
+        # Vertexes
         vertex_dict = {}
         for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'id', >=, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'id', <, 'binary:%s', true, false)" % (struct.pack(">q", offset), struct.pack(">q", limit))):
             vertex_dict[struct.unpack(">q", data['cf:id'])[0]] = data['cf:label']
@@ -106,6 +107,11 @@ if __name__ == "__main__":
         for key in ordered_dict:
             f.write('v %s %s\n' % (key, ordered_dict[key]))
             #f.write('v %s %s\n' % (struct.unpack(">q", data['cf:id'])[0], data['cf:label']))
+
+        #Edges
+        for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'source', <, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'target', <, 'binary:%s', true, false)" % (struct.pack(">q", limit), struct.pack(">q", limit))):
+            #print struct.unpack(">q", data['cf:source'])[0], struct.unpack(">q", data['cf:target'])[0], data['cf:label']
+            f.write('e %s %s %s\n' % (struct.unpack(">q", data['cf:source'])[0], struct.unpack(">q", data['cf:target'])[0], data['cf:label']))
         f.close()
         offset = limit
         limit += VERTEX_LIMIT
