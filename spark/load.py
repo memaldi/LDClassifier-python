@@ -5,7 +5,7 @@ import struct
 import happybase
 import collections
 
-HBASE_SERVER_IP = '192.168.1.108'
+HBASE_SERVER_IP = 'localhost'
 HBASE_FOLDER = '/tmp/hbase/'
 OUTPUT_DIR = '/home/mikel/doctorado/src/LDClassifier-python/LDClassifier-python/spark/output'
 VERTEX_LIMIT = 1000
@@ -65,23 +65,23 @@ if __name__ == "__main__":
     graph_table_name = chunks[len(chunks) - 1].replace('.nt', '') + '-graph'
 
     connection = happybase.Connection(HBASE_SERVER_IP)
-    # connection.create_table(table_name, {'p': dict(), 'o': dict()})
-    # connection.create_table(graph_table_name, {'cf': dict()})
+    connection.create_table(table_name, {'p': dict(), 'o': dict()})
+    connection.create_table(graph_table_name, {'cf': dict()})
 
-    # # Saving triples and generating vertexes
-    # counts = lines.map(lambda x: save_triples(x, ac, table_name, ac_vertex_id, graph_table_name))
-    # output = counts.collect()
-    # output_file = open('%s/%s' % (OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', '')), 'w')
-    # for uri in output:
-    #     if uri != None:
-    #         output_file.write(uri + '\n')
-    # output_file.close()
+    # Saving triples and generating vertexes
+    counts = lines.map(lambda x: save_triples(x, ac, table_name, ac_vertex_id, graph_table_name))
+    output = counts.collect()
+    output_file = open('%s/%s' % (OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', '')), 'w')
+    for uri in output:
+        if uri != None:
+            output_file.write(uri + '\n')
+    output_file.close()
 
     # Generating edges
-    # ac_edge_id = sc.accumulator(0)
-    # lines = sc.textFile('%s/%s' % (OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', '')))
-    # counts = lines.map(lambda x: generate_edges(x, graph_table_name, table_name, ac_edge_id))
-    # output = counts.collect()
+    ac_edge_id = sc.accumulator(0)
+    lines = sc.textFile('%s/%s' % (OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', '')))
+    counts = lines.map(lambda x: generate_edges(x, graph_table_name, table_name, ac_edge_id))
+    output = counts.collect()
 
     # Writing output file
 
@@ -106,16 +106,12 @@ if __name__ == "__main__":
         ordered_dict = collections.OrderedDict(sorted(vertex_dict.items()))
         for key in ordered_dict:
             f.write('v %s %s\n' % (key, ordered_dict[key]))
-            #f.write('v %s %s\n' % (struct.unpack(">q", data['cf:id'])[0], data['cf:label']))
 
         #Edges
         for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'source', <, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'target', <, 'binary:%s', true, false)" % (struct.pack(">q", limit), struct.pack(">q", limit))):
-            #print struct.unpack(">q", data['cf:source'])[0], struct.unpack(">q", data['cf:target'])[0], data['cf:label']
             f.write('e %s %s %s\n' % (struct.unpack(">q", data['cf:source'])[0], struct.unpack(">q", data['cf:target'])[0], data['cf:label']))
         f.close()
         offset = limit
         limit += VERTEX_LIMIT
-
-
 
     connection.close()
