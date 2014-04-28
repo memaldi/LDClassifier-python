@@ -20,18 +20,24 @@ def escape(s):
 def save_triples(table, graph_table, input_file):
     current = 1
     current_vertex_id = 1
+    bt = table.batch()
+    btg = graph_table.batch()
     with open(input_file) as f:
         for triple in f:
             striple = triple.split(' ')
             pred = 'p:%s' % current
             obj = 'o:%s' % current
             current += 1
-            table.put(striple[0], {pred: striple[1], obj: striple[2]})
+            bt.put(striple[0], {pred: striple[1], obj: striple[2]})
             if (current % 10000) == 0:
                 print 'Loaded %s triples...' % current
+                bt.send()
+                btg.send()
             if striple[1] == '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>':
-                graph_table.put(striple[0], {'cf:id': struct.pack(">q", current_vertex_id), 'cf:label': striple[2], 'cf:type': 'v'})
+                btg.put(striple[0], {'cf:id': struct.pack(">q", current_vertex_id), 'cf:label': striple[2], 'cf:type': 'v'})
                 current_vertex_id += 1
+        bt.send()
+        btg.send()
 
 def generate_edges(table, graph_table):
     edge_id = 0
