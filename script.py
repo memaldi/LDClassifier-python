@@ -31,6 +31,7 @@ def save_triples(table, graph_table, input_file):
             bt.put(striple[0], {pred: striple[1], obj: striple[2]})
             if (current % 10000) == 0:
                 print 'Loaded %s triples...' % current
+		sys.stdout.flush()
                 bt.send()
                 btg.send()
             if striple[1] == '<http://www.w3.org/1999/02/22-rdf-syntax-ns#type>':
@@ -46,6 +47,7 @@ def generate_edges(table, graph_table):
     for uri, data in graph_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:v')"):
         if (counter % 10000) == 0:
             print 'Analyzed %s vertexes...' % counter
+	    sys.stdout.flush()
         if (edge_id % 10000) == 0:
             b.send()
         counter += 1
@@ -70,23 +72,27 @@ if __name__ == "__main__":
     # logger.info('Initializing...')
 
     print 'Initializing...'
+    sys.stdout.flush()
     chunks = sys.argv[2].split('/')
     table_name = chunks[len(chunks) - 1].replace('.nt', '') + '-triples'
     graph_table_name = chunks[len(chunks) - 1].replace('.nt', '') + '-graph'
 
     connection = happybase.Connection(HBASE_SERVER_IP, compat='0.94')
-    # connection.create_table(table_name, {'p': dict(), 'o': dict()})
-    # connection.create_table(graph_table_name, {'cf': dict()})
+    connection.create_table(table_name, {'p': dict(), 'o': dict()})
+    connection.create_table(graph_table_name, {'cf': dict()})
 
     table = connection.table(table_name)
     graph_table = connection.table(graph_table_name)
 
     print 'Loading triples and generating vertexes...'
-    #save_triples(table, graph_table, sys.argv[2])
+    sys.stdout.flush()
+    save_triples(table, graph_table, sys.argv[2])
     print 'Generating Edges...'
+    sys.stdout.flush()
     generate_edges(table, graph_table)
 
-    logger.info('Writing output files...')
+    print 'Writing output files...'
+    sys.stdout.flush()
     stop = False
     total = 0
     counter = 1
