@@ -3,8 +3,79 @@ import happybase
 import struct
 import uuid
 import sys
+import redis
+import requests
 from os import listdir
 from os.path import isfile, join
+
+ACCEPT_LIST = ['application/rdf+xml', 'text/n3', 'text/plain']
+RDFLIB_CORRESPONDENCE = {'application/rdf+xml': 'xml', 'text/n3': 'n3', 'text/plain': 'nt'}
+TMP_DIR = '/tmp'
+
+def get_namespace(url):
+    if '#' in url:
+        return url.split('#')[0]
+    else:
+        surl = url.split('/')
+        new_url = ''
+        for chunk in surl[:len(surl) - 1]:
+            new_url += chunk + '/'
+        return new_url
+
+def get_ontology(r, label):
+    label = label.replace('<', '').replace('>', '').replace('"', '')
+    ontology_file = r.get('%s:file' % label)
+    ontology_serialization = None
+    namespace = get_namespace(label)
+    if ontology_file != None:
+        ontology_serialization = r.get('%s:serialization' % label)
+    else:
+        for accept in ACCEPT_LIST:
+            headers = {'Accept': accept}
+            try:
+                request = requests.get(namespace, headers=headers)
+                if request.headers['content-type'] == accept:
+                    ontology_serialization = accept
+                    break
+            except:
+                pass
+        if ontology_serialization in RDFLIB_CORRESPONDENCE:
+            try:
+                ontology_file = '%s/%s' % (TMP_DIR, str(uuid.uuid4()))
+                ontology_serialization = RDFLIB_CORRESPONDENCE[ontology_serialization]
+                f = open(ontology_file, 'w')
+                f.write(request.text)
+                f.close()
+                r.set('%s:file' % namespace, ontology_file)
+                r.set('%s:serialization' % namespace, ontology_serialization)
+            except:
+                pass
+
+    return ontology_file, ontology_serialization
+
+def generate_alignment(args):
+    alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
+    #alignment_connection.create_table('alignments', {'cf': dict()})
+    alignment_table = alignment_connection.table('alignments')
+
+    connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
+    tables = connection.tables()
+
+    r = redis.StrictRedis(host=args.redis_host, port=args.redis_port, db=args.redis_db)
+
+    for table_name in tables:
+        table = connection.table(table_name)
+        for key, data in table.scan():
+            label = ''
+            if 'vertex:label' in data:
+                label = data['vertex:label']
+            else:
+                label = data['edge:label']
+            source_ontology, source_serialization = get_ontology(r, label)
+            if source_ontology != None and source_serialization != None:
+                target_ontology, target_serialization = get_ontology(r, label)
+
+    connection.close()
 
 def reset(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
@@ -28,7 +99,10 @@ def create_table(table_name, connection, rewrite=False):
             connection.delete_table(table_name)
         except:
             pass
-    connection.create_table(table_name, {'graph': dict(), 'vertex': dict(), 'edge':dict()})
+    try:
+        connection.create_table(table_name, {'graph': dict(), 'vertex': dict(), 'edge':dict()})
+    except:
+        pass
 
 def load(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
@@ -38,7 +112,7 @@ def load(args):
     for subgraph in subgraphs:
         sys.stdout.write("\rLoading subgraphs (%s/%s)..." % (count, total))
         sys.stdout.flush()
-        create_table(subgraph, connection, rewrite=True)
+        create_table(subgraph, connection, rewrite=args.rewrite)
         table = connection.table(subgraph)
         with open('%s/%s' % (args.graph_dir, subgraph)) as sf:
             for line in sf:
@@ -57,12 +131,19 @@ parser = argparse.ArgumentParser(description='Match substructures.')
 parser.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
 parser.add_argument('-hbase_host', help='HBase host address. Default: localhost', default='localhost')
 parser.add_argument('-hbase_port', help='HBase connection port. Default: 9090', default=9090, type=int)
+parser.add_argument('-redis_host', help='Redis host address. Default: localhost', default='localhost')
+parser.add_argument('-redis_port', help='Redis connection port. Default: 6379', default=6379, type=int)
+parser.add_argument('-redis_db', help='Redis db id. Default: 0', default=0, type=int)
 
 subparsers = parser.add_subparsers(help='action to perform', dest='command')
 
 parser_load = subparsers.add_parser('load', help='load subgraphs into database')
 parser_load.add_argument('graph_dir', help='directory containing substructures extracted by SUBDUE')
+parser_load.add_argument('rewrite', help='if a graph already exists, is replaced in database', default=False, type=bool)
+
 parser_reset = subparsers.add_parser('reset', help='drops all tables from the database')
+
+parser_generate_alignment = subparsers.add_parser('generate_alignment', help='generate alignments among classes and properties found in substructures')
 
 args = parser.parse_args()
 
