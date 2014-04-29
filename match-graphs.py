@@ -42,30 +42,27 @@ def load(args):
         table = connection.table(subgraph)
         with open('%s/%s' % (args.graph_dir, subgraph)) as sf:
             for line in sf:
-                sl = line.split(' ').replace('\n', '')
+                sl = line.replace('\n', '').split(' ')
                 if line.startswith('v'):
                     table.put(struct.pack(">q", int(sl[1])), {'graph:type': 'v', 'vertex:label': sl[2]})
                 elif line.startswith('d'):
                     key = uuid.uuid4()
-                    table.put(key, {'graph:type': 'e', 'edge:source': struct.pack(">q", sl[1]), 'edge:target': struct.pack(">q", sl[2]), 'edge:label': sl[3]})
+                    table.put(str(key), {'graph:type': 'e', 'edge:source': struct.pack(">q", int(sl[1])), 'edge:target': struct.pack(">q", int(sl[2])), 'edge:label': sl[3]})
         count += 1
     connection.close()
     print ''
     print 'Done!'
 
 parser = argparse.ArgumentParser(description='Match substructures.')
+parser.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
+parser.add_argument('-hbase_host', help='HBase host address. Default: localhost', default='localhost')
+parser.add_argument('-hbase_port', help='HBase connection port. Default: 9090', default=9090, type=int)
+
 subparsers = parser.add_subparsers(help='action to perform', dest='command')
 
 parser_load = subparsers.add_parser('load', help='load subgraphs into database')
 parser_load.add_argument('graph_dir', help='directory containing substructures extracted by SUBDUE')
-parser_load.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
-parser_load.add_argument('-hbase_host', help='HBase host address. Default: localhost', default='localhost')
-parser_load.add_argument('-hbase_port', help='HBase connection port. Default: 9090', default=9090, type=int)
-
 parser_reset = subparsers.add_parser('reset', help='drops all tables from the database')
-parser_reset.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
-parser_reset.add_argument('-hbase_host', help='HBase host address. Default: localhost', default='localhost')
-parser_reset.add_argument('-hbase_port', help='HBase connection port. Default: 9090', default=9090, type=int)
 
 args = parser.parse_args()
 
