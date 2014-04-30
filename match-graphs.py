@@ -93,7 +93,7 @@ def get_classes(ontology):
 
 def get_entity_name(url):
     if '#' in url:
-        return url[1]
+        return url.split('#')[1]
     else:
         if url[len(url) - 1] == '/':
             url = url[:len(url) - 1]
@@ -101,10 +101,10 @@ def get_entity_name(url):
         return surl[len(surl) - 1]
 
 def distance(source, target, function):
-    source_name = get_entity_name(source[0])
-    target_name = get_entity_name(target[0])
+    source_name = get_entity_name(source)
+    target_name = get_entity_name(target)
     method = getattr(stringdistances, function)
-    method(source_name, target_name)
+    return method(source_name, target_name)
 
 def match_classes(source_ontology, target_ontology):
     source_classes = get_classes(source_ontology)
@@ -121,6 +121,10 @@ def match_classes(source_ontology, target_ontology):
                 print source_class, target_class, function, dist
     print ''
 
+def clean_label(label):
+    label = label.replace('<', '').replace('>', '').replace('"', '')
+    return label
+
 def generate_alignment(args):
     alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
     #alignment_connection.create_table('alignments', {'cf': dict()})
@@ -129,12 +133,12 @@ def generate_alignment(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
     tables = connection.tables()
 
-    # Get all ontologies
+    # Get all Classes and properties
     r = redis.StrictRedis(host=args.redis_host, port=args.redis_port, db=args.redis_db)
     total = len(tables)
     count = 1
     for table_name in tables:
-        sys.stdout.write("\rAnalyzing ontologies from subgraphs (%s/%s)..." % (count, total))
+        sys.stdout.write("\rAnalyzing classes and properties from subgraphs (%s/%s)..." % (count, total))
         sys.stdout.flush()
         count += 1
         table = connection.table(table_name)
@@ -142,27 +146,24 @@ def generate_alignment(args):
             label = ''
             if 'vertex:label' in data:
                 label = data['vertex:label']
+                # Store Class
+                alignment_table.put(label, {'cf:type': 'Class'})
             else:
                 label = data['edge:label']
-            namespace = get_namespace(label)
-            if not r.exists('%s:%s:file' % (args.prefix, namespace)) and namespace not in BLACKLIST:
-                get_ontology(r, namespace, args)
+                # Store property
+                alignment_table.put(label, {'cf:type': 'property'})
+
     print ''
 
-    # Match ontologies
-    total = len(r.keys('%s:*:file' % args.prefix))
-    count = 1
-    for source_key in r.keys('%s:*:file' % args.prefix):
-        sys.stdout.write("\rMatching ontologies (%s/%s)..." % (count, total))
-        sys.stdout.flush()
-        count += 1
-        for target_key in r.keys('%s:*:file' % args.prefix):
+    # Match Classes and properties
+    # Match Classes
+    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class')"):
+        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class')"):
             if source_key != target_key:
-                source_ontology = parse_ontology(r.get(source_key), r.get(source_key.replace(':file', ':serialization')))
-                if source_ontology != None:
-                    target_ontology = parse_ontology(r.get(source_key), r.get(source_key.replace(':file', ':serialization')))
-                    match_classes(source_ontology, target_ontology)
-    print ''
+                for function in MATCHING_FUNCTIONS:
+                    dist = distance(clean_label(source_key), clean_label(target_key), function)
+                    if dist < 0.5:
+                        print source_key, target_key, function, dist
 
     connection.close()
 
@@ -233,7 +234,7 @@ parser_load.add_argument('-rewrite', help='if a graph already exists, is replace
 parser_reset = subparsers.add_parser('reset', help='drops all tables from the database')
 
 parser_generate_alignment = subparsers.add_parser('generate_alignment', help='generate alignments among classes and properties found in substructures')
-parser_generate_alignment.add_argument('-ontology_dir', help='Directory where store ontologies', default='/tmp')
+#parser_generate_alignment.add_argument('-ontology_dir', help='Directory where store ontologies', default='/tmp')
 
 args = parser.parse_args()
 
