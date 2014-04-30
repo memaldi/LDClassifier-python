@@ -9,8 +9,8 @@ from rdflib import Graph
 from os import listdir
 from os.path import isfile, join
 
-ACCEPT_LIST = ['application/rdf+xml', 'text/n3', 'text/plain']
-RDFLIB_CORRESPONDENCE = {'application/rdf+xml': 'xml', 'text/n3': 'n3', 'text/plain': 'nt'}
+ACCEPT_LIST = ['application/rdf+xml', 'text/n3', 'text/plain', 'application/owl+xml']
+RDFLIB_CORRESPONDENCE = {'application/rdf+xml': 'xml', 'text/n3': 'n3', 'text/plain': 'nt', 'application/owl+xml': 'xml'}
 
 def get_namespace(url):
     if '#' in url:
@@ -29,15 +29,27 @@ def get_ontology(r, namespace, args):
     if ontology_file != None:
         ontology_serialization = r.get('%s:%s:serialization' % (args.prefix, namespace))
     else:
+        found = False
         for accept in ACCEPT_LIST:
             headers = {'Accept': accept}
             try:
-                request = requests.get(namespace, headers=headers)
-                if request.headers['content-type'] == accept:
+                request = requests.get(namespace, headers=headers, timeout=10)
+                if accept in request.headers['content-type']:
                     ontology_serialization = accept
+                    found = True
                     break
+            except Exception as e:
+                break
+
+        if not found:
+            try:
+                request = requests.get(namespace, timeout=10)
+                for accept in ACCEPT_LIST:
+                    if accept in request:
+                        ontology_serialization = accept
             except:
                 pass
+
         if ontology_serialization in RDFLIB_CORRESPONDENCE:
             try:
                 ontology_file = '%s/%s' % (args.ontology_dir, str(uuid.uuid4()))
@@ -80,7 +92,7 @@ def generate_alignment(args):
     total = len(tables)
     count = 1
     for table_name in tables:
-        sys.stdout.write("\rAnalyzing  ontologies from subgraphs (%s/%s)..." % (count, total))
+        sys.stdout.write("\rAnalyzing ontologies from subgraphs (%s/%s)..." % (count, total))
         sys.stdout.flush()
         count += 1
         table = connection.table(table_name)
@@ -96,9 +108,9 @@ def generate_alignment(args):
     print ''
 
     # Match ontologies
-
-
-
+    for source_key in r.keys('%s:*' % args.prefix):
+        for target_key in r.keys('%s:*' % args.prefix):
+            pass
     connection.close()
 
 def reset(args):
@@ -114,6 +126,7 @@ def reset(args):
         count += 1
     connection.close()
     print ''
+
     print 'Done!'
 
 def create_table(table_name, connection, rewrite=False):
