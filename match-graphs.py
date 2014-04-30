@@ -5,6 +5,7 @@ import uuid
 import sys
 import redis
 import requests
+from rdflib import Graph
 from os import listdir
 from os.path import isfile, join
 
@@ -53,6 +54,21 @@ def get_ontology(r, label):
 
     return ontology_file, ontology_serialization
 
+def parse_ontology(ontology_file, serialization):
+    ontology = Graph()
+    try:
+        ontology.parse(ontology_file, format=serialization)
+        return ontology
+    except:
+        for key in RDFLIB_CORRESPONDENCE:
+            try:
+                ontology.parse(ontology_file, format=RDFLIB_CORRESPONDENCE[key])
+                return ontology
+            except:
+                pass
+    return None
+
+
 def generate_alignment(args):
     alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
     #alignment_connection.create_table('alignments', {'cf': dict()})
@@ -62,8 +78,12 @@ def generate_alignment(args):
     tables = connection.tables()
 
     r = redis.StrictRedis(host=args.redis_host, port=args.redis_port, db=args.redis_db)
-
+    total = len(tables)
+    count = 1
     for table_name in tables:
+        sys.stdout.write("\rAnalyzing subgraphs (%s/%s)..." % (count, total))
+        sys.stdout.flush()
+        count += 1
         table = connection.table(table_name)
         for key, data in table.scan():
             label = ''
@@ -71,9 +91,13 @@ def generate_alignment(args):
                 label = data['vertex:label']
             else:
                 label = data['edge:label']
-            source_ontology, source_serialization = get_ontology(r, label)
-            if source_ontology != None and source_serialization != None:
-                target_ontology, target_serialization = get_ontology(r, label)
+            source_ontology_file, source_serialization = get_ontology(r, label)
+            if source_ontology_file != None and source_serialization != None:
+                target_ontology_file, target_serialization = get_ontology(r, label)
+                if target_ontology_file != None and target_serialization != None:
+                        source_ontology = parse_ontology(source_ontology_file, source_serialization)
+                        target_ontology = parse_ontology(target_ontology_file, target_serialization)
+
 
     connection.close()
 
