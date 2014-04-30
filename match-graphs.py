@@ -11,7 +11,6 @@ from os.path import isfile, join
 
 ACCEPT_LIST = ['application/rdf+xml', 'text/n3', 'text/plain']
 RDFLIB_CORRESPONDENCE = {'application/rdf+xml': 'xml', 'text/n3': 'n3', 'text/plain': 'nt'}
-TMP_DIR = '/tmp'
 
 def get_namespace(url):
     if '#' in url:
@@ -23,13 +22,12 @@ def get_namespace(url):
             new_url += chunk + '/'
         return new_url
 
-def get_ontology(r, label):
-    label = label.replace('<', '').replace('>', '').replace('"', '')
-    ontology_file = r.get('%s:file' % label)
+def get_ontology(r, namespace, args):
+    namespace = namespace.replace('<', '').replace('>', '').replace('"', '')
+    ontology_file = r.get('%s:%s:file' % (args.prefix, namespace))
     ontology_serialization = None
-    namespace = get_namespace(label)
     if ontology_file != None:
-        ontology_serialization = r.get('%s:serialization' % label)
+        ontology_serialization = r.get('%s:%s:serialization' % (args.prefix, namespace))
     else:
         for accept in ACCEPT_LIST:
             headers = {'Accept': accept}
@@ -42,13 +40,13 @@ def get_ontology(r, label):
                 pass
         if ontology_serialization in RDFLIB_CORRESPONDENCE:
             try:
-                ontology_file = '%s/%s' % (TMP_DIR, str(uuid.uuid4()))
+                ontology_file = '%s/%s' % (args.ontology_dir, str(uuid.uuid4()))
                 ontology_serialization = RDFLIB_CORRESPONDENCE[ontology_serialization]
                 f = open(ontology_file, 'w')
                 f.write(request.text)
                 f.close()
-                r.set('%s:file' % namespace, ontology_file)
-                r.set('%s:serialization' % namespace, ontology_serialization)
+                r.set('%s:%s:file' % (args.prefix, namespace), ontology_file)
+                r.set('%s:%s:serialization' % (args.prefix, namespace), ontology_serialization)
             except:
                 pass
 
@@ -77,11 +75,12 @@ def generate_alignment(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
     tables = connection.tables()
 
+    # Get all ontologies
     r = redis.StrictRedis(host=args.redis_host, port=args.redis_port, db=args.redis_db)
     total = len(tables)
     count = 1
     for table_name in tables:
-        sys.stdout.write("\rAnalyzing subgraphs (%s/%s)..." % (count, total))
+        sys.stdout.write("\rAnalyzing  ontologies from subgraphs (%s/%s)..." % (count, total))
         sys.stdout.flush()
         count += 1
         table = connection.table(table_name)
@@ -91,12 +90,13 @@ def generate_alignment(args):
                 label = data['vertex:label']
             else:
                 label = data['edge:label']
-            source_ontology_file, source_serialization = get_ontology(r, label)
-            if source_ontology_file != None and source_serialization != None:
-                target_ontology_file, target_serialization = get_ontology(r, label)
-                if target_ontology_file != None and target_serialization != None:
-                        source_ontology = parse_ontology(source_ontology_file, source_serialization)
-                        target_ontology = parse_ontology(target_ontology_file, target_serialization)
+            namespace = get_namespace(label)
+            if not r.exists('%s:%s:file' % (args.prefix, namespace)):
+                get_ontology(r, namespace, args)
+    print ''
+
+    # Match ontologies
+
 
 
     connection.close()
@@ -168,6 +168,7 @@ parser_load.add_argument('rewrite', help='if a graph already exists, is replaced
 parser_reset = subparsers.add_parser('reset', help='drops all tables from the database')
 
 parser_generate_alignment = subparsers.add_parser('generate_alignment', help='generate alignments among classes and properties found in substructures')
+parser_generate_alignment.add_argument('-ontology_dir', help='Directory where store ontologies', default='/tmp')
 
 args = parser.parse_args()
 
