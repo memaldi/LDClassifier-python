@@ -157,12 +157,29 @@ def generate_alignment(args):
 
     # Match Classes and properties
     # Match Classes
-    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class')"):
-        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class')"):
-            if source_key != target_key:
+    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, false)"):
+        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class, true, false')"):
+            if source_key != target_key and get_namespace(source_key) != get_namespace(target_key):
                 for function in MATCHING_FUNCTIONS:
-                    dist = distance(clean_label(source_key), clean_label(target_key), function)
-                    if dist < 0.5:
+                    found = False
+                    for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'function', =, 'binary:%s', true, false)" % (source_key, target_key, function)):
+                        #print key, data
+                        found = True
+                    if not found:
+                        dist = distance(clean_label(source_key), clean_label(target_key), function)
+                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">q", dist)})
+                        print source_key, target_key, function, dist
+    # Match properties
+    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, false)"):
+        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, false)"):
+            if source_key != target_key and get_namespace(source_key) != get_namespace(target_key):
+                for function in MATCHING_FUNCTIONS:
+                    found = False
+                    for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'function', =, 'binary:%s', true, false)" % (source_key, target_key, function)):
+                        found = True
+                    if not found:
+                        dist = distance(clean_label(source_key), clean_label(target_key), function)
+                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">q", dist)})
                         print source_key, target_key, function, dist
 
     connection.close()
