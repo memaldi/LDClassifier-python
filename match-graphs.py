@@ -67,13 +67,13 @@ def generate_alignment(args):
                 label = data['vertex:label']
                 # Store Class
                 row = table.row(label)
-                if row:
+                if not row:
                     alignment_table.put(label, {'cf:type': 'Class'})
             else:
                 label = data['edge:label']
                 # Store property
                 row = table.row(label)
-                if row:
+                if not row:
                     alignment_table.put(label, {'cf:type': 'property'})
 
     print ''
@@ -92,7 +92,7 @@ def generate_alignment(args):
                     if not found:
                         dist = distance(clean_label(source_key), clean_label(target_key), function)
                         alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">q", dist)})
-                        print source_key, target_key, function, dist
+                        #print source_key, target_key, function, dist
     # Match properties
     print 'Matching properties...'
     for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, false)"):
@@ -105,7 +105,7 @@ def generate_alignment(args):
                     if not found:
                         dist = distance(clean_label(source_key), clean_label(target_key), function)
                         alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">q", dist)})
-                        print source_key, target_key, function, dist
+                        #print source_key, target_key, function, dist
 
     connection.close()
 
@@ -159,6 +159,38 @@ def load(args):
     print ''
     print 'Done!'
 
+def sim(args):
+    connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
+    alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
+    alignment_table = alignment_connection.table('alignments')
+    tables = connection.tables()
+
+    total = len(tables)
+    count = 1
+    for source_table_name in tables:
+        sys.stdout.write("\rMatching subgraphs (%s/%s)..." % (count, total))
+        sys.stdout.flush()
+        count += 1
+        source_table = connection.table(source_table_name)
+        for target_table_name in tables:
+            if source_table_name != target_table_name:
+                target_table = connection.table(target_table_name)
+                match_dict = {}
+                for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                        if source_key != target_key:
+                            accum = 0
+                            func_count = 0
+                            print source_data['vertex:label'], target_data['vertex:label']
+                            for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s')" % (source_key, target_key)):
+                                accum += data['cf:dist']
+                                func_count += 1
+                            similarity = 0
+                            if accum > 0:
+                                similarity = 1 - (accum / func_count)
+                            print similarity
+    print ''
+
 parser = argparse.ArgumentParser(description='Match substructures.')
 parser.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
 parser.add_argument('-hbase_host', help='HBase host address. Default: localhost', default='localhost')
@@ -176,6 +208,8 @@ parser_load.add_argument('-rewrite', help='if a graph already exists, is replace
 parser_reset = subparsers.add_parser('reset', help='drops all tables from the database')
 
 parser_generate_alignment = subparsers.add_parser('generate_alignment', help='generate alignments among classes and properties found in substructures')
+
+parser_similarities = subparsers.add_parser('sim', help='generate similarities among datasets')
 
 args = parser.parse_args()
 
