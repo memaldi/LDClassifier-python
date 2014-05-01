@@ -91,7 +91,7 @@ def generate_alignment(args):
                         found = True
                     if not found:
                         dist = distance(clean_label(source_key), clean_label(target_key), function)
-                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">q", dist)})
+                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">f", dist)})
                         #print source_key, target_key, function, dist
     # Match properties
     print 'Matching properties...'
@@ -104,7 +104,7 @@ def generate_alignment(args):
                         found = True
                     if not found:
                         dist = distance(clean_label(source_key), clean_label(target_key), function)
-                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">q", dist)})
+                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">f", dist)})
                         #print source_key, target_key, function, dist
 
     connection.close()
@@ -178,18 +178,19 @@ def sim(args):
                 match_dict = {}
                 for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
-                        if source_key != target_key:
+                        print source_data['vertex:label'], target_data['vertex:label']
+                        if get_entity_name(source_data['vertex:label']) != get_entity_name(target_data['vertex:label']):
                             accum = 0
                             func_count = 0
-                            print source_data['vertex:label'], target_data['vertex:label']
                             for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s', true, false)" % (source_data['vertex:label'], target_data['vertex:label'])):
-                                print data
-                                accum += data['cf:dist']
+                                accum += struct.unpack(">f", data['cf:dist'])[0]
                                 func_count += 1
                             similarity = 0
                             if accum > 0:
-                                similarity = 1 - (accum / func_count)
-                            print similarity
+                                similarity = 1 - float(accum / func_count)
+                        else:
+                            similarity = 1
+
     print ''
 
 parser = argparse.ArgumentParser(description='Match substructures.')
