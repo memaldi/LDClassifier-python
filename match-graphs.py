@@ -81,8 +81,8 @@ def generate_alignment(args):
     # Match Classes and properties
     # Match Classes
     print 'Matching classes...'
-    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, false)"):
-        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class, true, false')"):
+    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, true)"):
+        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, true)"):
             if source_key != target_key and get_namespace(source_key) != get_namespace(target_key):
                 for function in MATCHING_FUNCTIONS:
                     found = False
@@ -95,8 +95,8 @@ def generate_alignment(args):
                         #print source_key, target_key, function, dist
     # Match properties
     print 'Matching properties...'
-    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, false)"):
-        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, false)"):
+    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, true)"):
+        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, true)"):
             if source_key != target_key and get_namespace(source_key) != get_namespace(target_key):
                 for function in MATCHING_FUNCTIONS:
                     found = False
@@ -182,7 +182,8 @@ def sim(args):
                             accum = 0
                             func_count = 0
                             print source_data['vertex:label'], target_data['vertex:label']
-                            for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s')" % (source_key, target_key)):
+                            for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s', true, false)" % (source_data['vertex:label'], target_data['vertex:label'])):
+                                print data
                                 accum += data['cf:dist']
                                 func_count += 1
                             similarity = 0
