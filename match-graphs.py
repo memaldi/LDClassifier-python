@@ -159,6 +159,57 @@ def load(args):
     print ''
     print 'Done!'
 
+def match_edges(source_table_name, target_table_name, connection, alignment_connection, matching_threshold):
+    source_labels = set()
+    target_labels = set()
+    print source_table_name, target_table_name
+    source_table = connection.table(source_table_name)
+    target_table = connection.table(target_table_name)
+    alignment_table = alignment_connection.table('alignments')
+    for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:d', true, false)"):
+        source_labels.add(source_data['edge:label'])
+    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:d', true, false)"):
+        target_labels.add(target_data['edge:label'])
+    sim_dict = {}
+    for source_label in source_labels:
+        for target_label in target_labels:
+            if source_label != target_label:
+                similarity = 0
+                func_count = 0
+                dist = 0
+                for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s', true, false) AND SingleColumnValueFilter ('cf', 'target', =, 'binary:%s', true, false)" % (source_label, target_label)):
+                    func_count += 1
+                    dist += struct.unpack(">f", data['cf:dist'])[0]
+                if dist > 0:
+                    similarity = 1 - float(dist / func_count)
+                if similarity > matching_threshold:
+                    if source_label not in sim_dict:
+                        sim_dict[source_label] = {}
+                    sim_dict[source_label][target_label] = similarity
+
+            else:
+                if source_label not in sim_dict:
+                    sim_dict[source_label] = {}
+                sim_dict[source_label][target_label] = 1
+                break
+    vertex_replace_dict = {}
+    target_dict = {}
+    for key in sim_dict:
+        max_sim = 0
+        max_sim_label = None
+        for key2 in sim_dict[key]:
+            if sim_dict[key][key2] > max_sim:
+                max_sim = sim_dict[key][key2]
+                max_sim_label = key2
+
+        if max_sim_label not in target_dict:
+            target_dict[max_sim_label] = 0
+        if max_sim > target_dict[max_sim_label]:
+            target_dict[max_sim_label] = max_sim
+            vertex_replace_dict[key] = max_sim_label
+            vertex_replace_dict[max_sim_label] = key
+    return vertex_replace_dict
+
 def match_vertexes(source_table_name, target_table_name, connection, alignment_connection, matching_threshold):
     source_labels = set()
     target_labels = set()
@@ -229,7 +280,9 @@ def sim(args):
                 #target_table = connection.table(target_table_name)
                 # Vertexes
                 vertex_replace_dict = match_vertexes(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
-                print vertex_replace_dict
+                #print vertex_replace_dict
+                edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
+                print edge_replace_dict
                 # Edges
 
 
