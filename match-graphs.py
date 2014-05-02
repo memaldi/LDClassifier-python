@@ -162,7 +162,6 @@ def load(args):
 def match_edges(source_table_name, target_table_name, connection, alignment_connection, matching_threshold):
     source_labels = set()
     target_labels = set()
-    print source_table_name, target_table_name
     source_table = connection.table(source_table_name)
     target_table = connection.table(target_table_name)
     alignment_table = alignment_connection.table('alignments')
@@ -206,14 +205,14 @@ def match_edges(source_table_name, target_table_name, connection, alignment_conn
             target_dict[max_sim_label] = 0
         if max_sim > target_dict[max_sim_label]:
             target_dict[max_sim_label] = max_sim
-            vertex_replace_dict[key] = max_sim_label
-            vertex_replace_dict[max_sim_label] = key
+            common_id = str(uuid.uuid4())
+            vertex_replace_dict[key] = common_id
+            vertex_replace_dict[max_sim_label] = common_id
     return vertex_replace_dict
 
 def match_vertexes(source_table_name, target_table_name, connection, alignment_connection, matching_threshold):
     source_labels = set()
     target_labels = set()
-    print source_table_name, target_table_name
     source_table = connection.table(source_table_name)
     target_table = connection.table(target_table_name)
     alignment_table = alignment_connection.table('alignments')
@@ -258,14 +257,15 @@ def match_vertexes(source_table_name, target_table_name, connection, alignment_c
             target_dict[max_sim_label] = 0
         if max_sim > target_dict[max_sim_label]:
             target_dict[max_sim_label] = max_sim
-            vertex_replace_dict[key] = max_sim_label
-            vertex_replace_dict[max_sim_label] = key
+            common_id = str(uuid.uuid4())
+            vertex_replace_dict[key] = common_id
+            vertex_replace_dict[max_sim_label] = common_id
     return vertex_replace_dict
 
 def sim(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
     alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
-    #alignment_table = alignment_connection.table('alignments')
+    alignment_table = alignment_connection.table('alignments')
     tables = connection.tables()
 
     total = len(tables)
@@ -274,14 +274,31 @@ def sim(args):
         sys.stdout.write("\rMatching subgraphs (%s/%s)..." % (count, total))
         sys.stdout.flush()
         count += 1
-        #source_table = connection.table(source_table_name)
+        source_table = connection.table(source_table_name)
         for target_table_name in tables:
             if source_table_name != target_table_name:
-                #target_table = connection.table(target_table_name)
+                target_table = connection.table(target_table_name)
                 # Vertexes
                 vertex_replace_dict = match_vertexes(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
                 # Edges
                 edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
+                print vertex_replace_dict, edge_replace_dict
+                source_file = open('%s/%s' % (args.tmp_dir, str(uuid.uuid4())), 'w')
+                target_file = open('%s/%s' % (args.tmp_dir, str(uuid.uuid4())), 'w')
+                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                    label = data['vertex:label']
+                    if label in vertex_replace_dict:
+                        label = vertex_replace_dict[label]
+                    source_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
+
+                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                    label = data['vertex:label']
+                    if label in edge_replace_dict:
+                        label = edge_replace_dict[label]
+                    target_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
+
+                source_file.close()
+                target_file.close()
 
 
     print ''
