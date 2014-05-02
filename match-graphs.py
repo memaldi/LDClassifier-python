@@ -175,21 +175,55 @@ def sim(args):
         for target_table_name in tables:
             if source_table_name != target_table_name:
                 target_table = connection.table(target_table_name)
-                match_dict = {}
+                # Vertexes
+                source_labels = set()
+                target_labels = set()
+                print source_table_name, target_table_name
                 for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
-                    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
-                        print source_data['vertex:label'], target_data['vertex:label']
-                        if get_entity_name(source_data['vertex:label']) != get_entity_name(target_data['vertex:label']):
-                            accum = 0
-                            func_count = 0
-                            for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s', true, false)" % (source_data['vertex:label'], target_data['vertex:label'])):
-                                accum += struct.unpack(">f", data['cf:dist'])[0]
-                                func_count += 1
+                    source_labels.add(source_data['vertex:label'])
+                for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                    target_labels.add(target_data['vertex:label'])
+
+                sim_dict = {}
+                for source_label in source_labels:
+                    for target_label in target_labels:
+                        if source_label != target_label:
                             similarity = 0
-                            if accum > 0:
-                                similarity = 1 - float(accum / func_count)
+                            func_count = 0
+                            dist = 0
+                            for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s', true, false) AND SingleColumnValueFilter ('cf', 'target', =, 'binary:%s', true, false)" % (source_label, target_label)):
+                                func_count += 1
+                                dist += struct.unpack(">f", data['cf:dist'])[0]
+                            if dist > 0:
+                                similarity = 1 - float(dist / func_count)
+                            if similarity > args.matching_threshold:
+                                if source_label not in sim_dict:
+                                    sim_dict[source_label] = {}
+                                sim_dict[source_label][target_label] = similarity
+
                         else:
-                            similarity = 1
+                            if source_label not in sim_dict:
+                                sim_dict[source_label] = {}
+                            sim_dict[source_label][target_label] = 1
+                            break
+
+                vertex_replace_dict = {}
+                target_dict = {}
+                for key in sim_dict:
+                    max_sim = 0
+                    max_sim_label = None
+                    for key2 in sim_dict[key]:
+                        if sim_dict[key][key2] > max_sim:
+                            max_sim = sim_dict[key][key2]
+                            max_sim_label = key2
+
+                    if max_sim_label not in target_dict:
+                        target_dict[max_sim_label] = 0
+                    if max_sim > target_dict[max_sim_label]:
+                        target_dict[max_sim_label] = max_sim
+                        vertex_replace_dict[key] = max_sim_label
+                        vertex_replace_dict[max_sim_label] = key
+
 
     print ''
 
@@ -212,6 +246,8 @@ parser_reset = subparsers.add_parser('reset', help='drops all tables from the da
 parser_generate_alignment = subparsers.add_parser('generate_alignment', help='generate alignments among classes and properties found in substructures')
 
 parser_similarities = subparsers.add_parser('sim', help='generate similarities among datasets')
+parser_similarities.add_argument('matching_threshold', help='value over is considered that two entities represent the same concept', type=float)
+parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp', default='/tmp')
 
 args = parser.parse_args()
 
