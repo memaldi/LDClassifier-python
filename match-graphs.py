@@ -166,9 +166,9 @@ def match_edges(source_table_name, target_table_name, connection, alignment_conn
     source_table = connection.table(source_table_name)
     target_table = connection.table(target_table_name)
     alignment_table = alignment_connection.table('alignments')
-    for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:d', true, false)"):
+    for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
         source_labels.add(source_data['edge:label'])
-    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:d', true, false)"):
+    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
         target_labels.add(target_data['edge:label'])
     sim_dict = {}
     for source_label in source_labels:
@@ -280,10 +280,8 @@ def sim(args):
                 #target_table = connection.table(target_table_name)
                 # Vertexes
                 vertex_replace_dict = match_vertexes(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
-                #print vertex_replace_dict
-                edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
-                print edge_replace_dict
                 # Edges
+                edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
 
 
     print ''
