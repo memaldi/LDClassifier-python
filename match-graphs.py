@@ -4,6 +4,8 @@ import struct
 import uuid
 import sys
 import stringdistances
+import subprocess
+import numpy as np
 from os import listdir
 from os.path import isfile, join
 
@@ -263,6 +265,9 @@ def match_vertexes(source_table_name, target_table_name, connection, alignment_c
     return vertex_replace_dict
 
 def sim(args):
+
+    result_dict = {}
+
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
     alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
     alignment_table = alignment_connection.table('alignments')
@@ -282,26 +287,98 @@ def sim(args):
                 vertex_replace_dict = match_vertexes(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
                 # Edges
                 edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
-                print vertex_replace_dict, edge_replace_dict
-                source_file = open('%s/%s' % (args.tmp_dir, str(uuid.uuid4())), 'w')
-                target_file = open('%s/%s' % (args.tmp_dir, str(uuid.uuid4())), 'w')
+                # print vertex_replace_dict, edge_replace_dict
+                source_file_name = '%s/%s' % (args.tmp_dir, str(uuid.uuid4()))
+                source_file = open(source_file_name, 'w')
+                target_file_name = '%s/%s' % (args.tmp_dir, str(uuid.uuid4()))
+                target_file = open(target_file_name, 'w')
+                source_len = 0
+                target_len = 0
+                # Write vertexes in source graph
                 for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     label = data['vertex:label']
                     if label in vertex_replace_dict:
                         label = vertex_replace_dict[label]
                     source_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
-
-                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                    source_len += 1
+                # Write vertexes in target graph
+                for key, data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     label = data['vertex:label']
+                    if label in vertex_replace_dict:
+                        label = vertex_replace_dict[label]
+                    target_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
+                    target_len += 1
+                # Write edges in source graph
+                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+                    label = data['edge:label']
                     if label in edge_replace_dict:
                         label = edge_replace_dict[label]
-                    target_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
-
+                    source_file.write('d %s %s %s\n' % (struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0], label))
+                    source_len += 1
+                # Write edges in target graph
+                for key, data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+                    label = data['edge:label']
+                    if label in edge_replace_dict:
+                        label = edge_replace_dict[label]
+                    target_file.write('d %s %s %s\n' % (struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0], label))
+                    target_len += 1
                 source_file.close()
                 target_file.close()
 
+                # Match graph using GM tool
+                proc = subprocess.Popen([args.subdue_dir + "/bin/gm", source_file_name, target_file_name], stdout=subprocess.PIPE)
+                stdout = proc.stdout.read()
+                transformation_cost = int(stdout[stdout.find('Match Cost = ') + len('Match Cost = '):stdout.find('\n')].split('.')[0])
+                if source_len > target_len:
+                    max_len = source_len
+                else:
+                    max_len = target_len
+                # To be fixed
+                if transformation_cost > max_len:
+                    transformation_cost = max_len
+                normalized_cost = (float(transformation_cost) / max_len)
+                similarity = 1 - normalized_cost
 
+                if source_table_name not in result_dict:
+                    result_dict[source_table_name] = {}
+                result_dict[source_table_name][target_table_name] = similarity
     print ''
+    return result_dict
+
+def test(args):
+    test_list = []
+    with open(args.validation_file) as f:
+        for line in f:
+            test_list.append(line.replace('\n', ''))
+
+    for subs_threshold in np.arange(0, 1.1, 0.1):
+        for matching_threshold in np.arange(0, 1.1, 0.1):
+            print '*' * 10
+            print 'Configuration:'
+            print 'Substructure similarity threshold: %s' % subs_threshold
+            print 'Entity matching threshold: %s' % matching_threshold
+            fp, tp, fn, tn = 0, 0, 0, 0
+            args.matching_threshold = matching_threshold
+            result_dict = sim(args)
+            for key in result_dict:
+                for key2 in result_dict[key]:
+                    similarity = result_dict[key][key2]
+                    if similarity > subs_threshold:
+                        if key in test_list and key2 in test_list:
+                            tp += 1
+                        else:
+                            fp += 1
+                    else:
+                        if key in test_list and key2 in test_list:
+                            fn += 1
+                        else:
+                            tn += 1
+            precision = float(tp) / (tp + fp)
+            print 'Precision: %s' % str(precision)
+            recall = float(tp) / (tp + fn)
+            print 'Recall: %s' % str(recall)
+
+    sim(args)
 
 parser = argparse.ArgumentParser(description='Match substructures.')
 parser.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
@@ -323,7 +400,14 @@ parser_generate_alignment = subparsers.add_parser('generate_alignment', help='ge
 
 parser_similarities = subparsers.add_parser('sim', help='generate similarities among datasets')
 parser_similarities.add_argument('matching_threshold', help='value over is considered that two entities represent the same concept', type=float)
+parser_similarities.add_argument('subdue_dir', help='location of SUBDUE')
 parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp', default='/tmp')
+
+parser_similarities = subparsers.add_parser('test', help='generate evaluation test')
+parser_similarities.add_argument('subdue_dir', help='location of SUBDUE')
+parser_similarities.add_argument('validation_file', help='test file.')
+parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp', default='/tmp')
+
 
 args = parser.parse_args()
 
