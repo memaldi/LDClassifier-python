@@ -1,5 +1,4 @@
 http://datahub.io/dataset/rkb-explorer-southampton
-http://datahub.io/dataset/klappstuhlclub
 http://datahub.io/dataset/rkb-explorer-courseware
 http://datahub.io/dataset/education-data-gov-uk
 http://datahub.io/dataset/transparency-linked-data
@@ -22,7 +21,6 @@ http://datahub.io/dataset/rkb-explorer-risks
 http://datahub.io/dataset/fu-berlin-dailymed
 http://datahub.io/dataset/rkb-explorer-jisc
 http://datahub.io/dataset/rkb-explorer-ft
-http://datahub.io/dataset/temple-ov-thee-lemur-datasets
 http://datahub.io/dataset/rkb-explorer-eurecom
 http://datahub.io/dataset/nvd
 http://datahub.io/dataset/rkb-explorer-newcastle
@@ -37,10 +35,8 @@ http://datahub.io/dataset/nytimes-linked-open-data
 http://datahub.io/dataset/lista-encabezamientos-materia
 http://datahub.io/dataset/dcs-sheffield
 http://datahub.io/dataset/rkb-explorer-ibm
-http://stats.lod2.eu/rdfdocs/1667
 http://datahub.io/dataset/rkb-explorer-irit
 http://datahub.io/dataset/rkb-explorer-roma
-http://datahub.io/dataset/hellenic-police
 http://datahub.io/dataset/rkb-explorer-os
 http://datahub.io/dataset/lexvo
 http://datahub.io/dataset/rkb-explorer-ieee
@@ -58,3 +54,7 @@ http://datahub.io/dataset/finnish-municipalities
 http://datahub.io/dataset/osm-semantic-network
 http://datahub.io/dataset/telegraphis
 http://datahub.io/dataset/colinda
+http://datahub.io/dataset/rkb-explorer-dblp
+http://datahub.io/dataset/rkb-explorer-acm
+http://datahub.io/dataset/rkb-explorer-nsf
+http://datahub.io/dataset/elviajero
