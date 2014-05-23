@@ -230,7 +230,7 @@ def match_vertexes(source_table_name, target_table_name, connection, alignment_c
     sim_dict = {}
     for source_label in source_labels:
         for target_label in target_labels:
-            if source_label != target_label:
+            if get_entity_name(source_label) != get_entity_name(target_label):
                 similarity = 0
                 func_count = 0
                 dist = 0
@@ -243,7 +243,6 @@ def match_vertexes(source_table_name, target_table_name, connection, alignment_c
                     if source_label not in sim_dict:
                         sim_dict[source_label] = {}
                     sim_dict[source_label][target_label] = similarity
-
             else:
                 if source_label not in sim_dict:
                     sim_dict[source_label] = {}
@@ -351,10 +350,15 @@ def sim_matching(args):
     alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
     alignment_table = alignment_connection.table('alignments')
     tables = connection.tables()
+    source_tables = []
+    if args.source_dataset:
+        source_tables.append(args.source_dataset)
+    else:
+        source_tables = connection.tables()
 
-    total = len(tables)
+    total = len(source_tables)
     count = 1
-    for source_table_name in tables:
+    for source_table_name in source_tables:
         sys.stdout.write("\rMatching subgraphs (%s/%s)..." % (count, total))
         sys.stdout.flush()
         count += 1
@@ -417,11 +421,11 @@ def sim_matching(args):
                     transformation_cost = max_len
                 normalized_cost = (float(transformation_cost) / max_len)
                 similarity = 1 - normalized_cost
-
                 if source_table_name not in result_dict:
                     result_dict[source_table_name] = {}
                 result_dict[source_table_name][target_table_name] = similarity
     print ''
+    print result_dict
     return result_dict
 
 def test(args):
@@ -438,8 +442,8 @@ def test(args):
     else:
         matching_threshold_limit = 1.1
 
-    for subs_threshold in np.arange(0, 1.1, 0.1):
-        for matching_threshold in np.arange(0, matching_threshold_limit, 0.1):
+    for subs_threshold in np.arange(0.5, 1.1, 0.1):
+        for matching_threshold in np.arange(0.5, matching_threshold_limit, 0.1):
             result_dict = {}
             print '*' * 10
             print 'Configuration:'
@@ -456,6 +460,7 @@ def test(args):
                             tp += 1
                         elif (key in test_list and key2 not in test_list) or (key not in test_list and key2 in test_list):
                             fp += 1
+                            print '%s - %s (%s)' % (key, key2, similarity)
                     else:
                         if key in test_list and key2 in test_list:
                             fn += 1
@@ -498,6 +503,7 @@ parser_similarities.add_argument('matching_threshold', help='value over is consi
 parser_similarities.add_argument('subdue_dir', help='location of SUBDUE')
 parser_similarities.add_argument('--no_matching', help='find simmilarities without applying ontology matching')
 parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp', default='/tmp')
+parser_similarities.add_argument('-source_dataset', help='source dataset. If no dataset given similarties among all datasets are generated.')
 
 parser_similarities = subparsers.add_parser('test', help='generate evaluation test')
 parser_similarities.add_argument('subdue_dir', help='location of SUBDUE')
