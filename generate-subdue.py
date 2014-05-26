@@ -3,10 +3,11 @@ import struct
 import happybase
 import collections
 import logging
+import os.path
 
 HBASE_SERVER_IP = 'localhost'
 VERTEX_LIMIT = 1000
-SUBDUE_OUTPUT_DIR = '/home/mikel/doctorado/src/LDClassifier-python/LDClassifier-python/output/subdue'
+SUBDUE_OUTPUT_DIR = '/home/mikel/LDClassifier-python/LDClassifier-python/output/subdue'
 LOGGER_FORMAT =     '[%(asctime)s] - %(message)s'
 
 def escape(s):
@@ -28,7 +29,11 @@ def save_triples(table, graph_table, input_file):
             pred = 'p:%s' % current
             obj = 'o:%s' % current
             current += 1
-            bt.put(striple[0], {pred: striple[1], obj: striple[2]})
+	    try:
+            	bt.put(striple[0], {pred: striple[1], obj: striple[2]})
+	    except:
+		print triple
+		sys.exit(-1)
             if (current % 100) == 0:
                 print 'Loaded %s triples...' % current
                 sys.stdout.flush()
@@ -78,18 +83,18 @@ if __name__ == "__main__":
     graph_table_name = chunks[len(chunks) - 1].replace('.nt', '') + '-graph'
 
     connection = happybase.Connection(HBASE_SERVER_IP, compat='0.94')
-    connection.create_table(table_name, {'p': dict(), 'o': dict()})
-    connection.create_table(graph_table_name, {'cf': dict()})
+    #connection.create_table(table_name, {'p': dict(), 'o': dict()})
+    #connection.create_table(graph_table_name, {'cf': dict()})
 
     table = connection.table(table_name)
     graph_table = connection.table(graph_table_name)
 
     print 'Loading triples and generating vertexes...'
     sys.stdout.flush()
-    save_triples(table, graph_table, sys.argv[2])
+    #save_triples(table, graph_table, sys.argv[2])
     print 'Generating Edges...'
     sys.stdout.flush()
-    generate_edges(table, graph_table)
+    #generate_edges(table, graph_table)
 
     print 'Writing output files...'
     sys.stdout.flush()
@@ -105,23 +110,23 @@ if __name__ == "__main__":
         if (limit > total):
             limit = total + 1
             stop = True
+        if not os.path.isfile('%s/%s_%s.g' % (SUBDUE_OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', ''), counter)):
+            f = open('%s/%s_%s.g' % (SUBDUE_OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', ''), counter), 'w')
+            #counter += 1
+            # Vertexes
+            vertex_dict = {}
+            #print offset, limit
+            for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'id', >=, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'id', <, 'binary:%s', true, false)" % (escape(struct.pack(">q", offset)), escape(struct.pack(">q", limit)))):
+                vertex_dict[struct.unpack(">q", data['cf:id'])[0]] = data['cf:label']
+            ordered_dict = collections.OrderedDict(sorted(vertex_dict.items()))
+            for key in ordered_dict:
+                f.write('v %s %s\n' % (key, ordered_dict[key]))
 
-        f = open('%s/%s_%s.g' % (SUBDUE_OUTPUT_DIR, chunks[len(chunks) - 1].replace('.nt', ''), counter), 'w')
-        counter += 1
-        # Vertexes
-        vertex_dict = {}
-        #print offset, limit
-        for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'id', >=, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'id', <, 'binary:%s', true, false)" % (escape(struct.pack(">q", offset)), escape(struct.pack(">q", limit)))):
-            vertex_dict[struct.unpack(">q", data['cf:id'])[0]] = data['cf:label']
-        ordered_dict = collections.OrderedDict(sorted(vertex_dict.items()))
-        for key in ordered_dict:
-            f.write('v %s %s\n' % (key, ordered_dict[key]))
-
-        #Edges
-        for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'source', <, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'target', <, 'binary:%s', true, false)" % (escape(struct.pack(">q", limit)), escape(struct.pack(">q", limit)))):
-            f.write('e %s %s %s\n' % (struct.unpack(">q", data['cf:source'])[0], struct.unpack(">q", data['cf:target'])[0], data['cf:label']))
-        f.close()
+            #Edges
+            for key, data in graph_table.scan(filter="SingleColumnValueFilter('cf', 'source', <, 'binary:%s', true, false) AND SingleColumnValueFilter('cf', 'target', <, 'binary:%s', true, false)" % (escape(struct.pack(">q", limit)), escape(struct.pack(">q", limit)))):
+                f.write('e %s %s %s\n' % (struct.unpack(">q", data['cf:source'])[0], struct.unpack(">q", data['cf:target'])[0], data['cf:label']))
+            f.close()
         offset = limit
         limit += VERTEX_LIMIT
-
+        counter += 1
     connection.close()
