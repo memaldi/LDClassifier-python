@@ -3,7 +3,6 @@ import sys
 import urllib
 import urllib2
 import time
-import requests
 
 result = 0
 end = False
@@ -18,15 +17,17 @@ f = open(output, 'w')
 
 while not end:
     query = 'SELECT DISTINCT * WHERE { ?s ?p ?o } OFFSET %s LIMIT %s' % (str(offset), str(limit))
-    params = urllib.urlencode({'query': query, 'output': 'json', 'format': 'application/sparql-results+json'})
-    headers = {'Accept': 'application/rdf+xml, application/sparql-results+json'}
+    params = 'query=%s&output=json&format=application/sparql-results+json' % query
+    request = urllib2.Request(sparql_endpoint + '?' + params)
+    request.add_header('Accept', 'application/rdf+xml, application/sparql-results+json')
     retries = 1
     success = False
     while not success:
         try:
-            r = requests.get(sparql_endpoint, params=params, headers=headers)
+            response = urllib2.urlopen(request)
             success = True
         except Exception as e:
+            print e
             wait = retries * 30;
             print 'Error! Waiting %s secs and re-trying...' % wait
             sys.stdout.flush()
@@ -34,8 +35,8 @@ while not end:
             retries += 1
             #response = urllib2.urlopen(request)
 
-    if r.status_code == 200:
-        data = r.text
+    if response.code == 200:
+        data = response.read()
         try:
             json_data = json.loads(data)
         except Exception as e:
