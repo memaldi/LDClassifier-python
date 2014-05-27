@@ -6,10 +6,10 @@ import happybase
 import collections
 
 HBASE_SERVER_IP = 'localhost'
-HBASE_FOLDER = '/tmp/hbase/'
-OUTPUT_DIR = '/home/mikel/doctorado/src/LDClassifier-python/LDClassifier-python/spark/output'
+#HBASE_FOLDER = '/tmp/hbase/'
+OUTPUT_DIR = '/home/mikel/LDClassifier-python/LDClassifier-python/spark/output'
 VERTEX_LIMIT = 1000
-SUBDUE_OUTPUT_DIR = '/home/mikel/doctorado/src/LDClassifier-python/LDClassifier-python/spark/output/subdue'
+SUBDUE_OUTPUT_DIR = '/home/mikel/LDClassifier-python/LDClassifier-python/spark/output/subdue'
 
 class CustomConnectionPool(object):
     _connection = None
@@ -25,7 +25,7 @@ class CustomConnectionPool(object):
         return cls._instance
 
 def save_triples(triple, ac, table_name, ac_vertex_id, graph_table_name):
-    print 'save_triples'
+    #print 'save_triples'
     striple = triple.split(' ')
     connection = happybase.Connection(HBASE_SERVER_IP, compat='0.94')
     # connection_pool = CustomConnectionPool()
@@ -42,10 +42,10 @@ def save_triples(triple, ac, table_name, ac_vertex_id, graph_table_name):
         ac_vertex_id.add(1)
         graph_table.put(striple[0], {'cf:id': struct.pack(">q", int(str(ac_vertex_id))), 'cf:label': striple[2], 'cf:type': 'v'})
         connection.close()
-        print 'connection closed'
+        #print 'connection closed'
         return striple[0]
     connection.close()
-    print 'connection close'
+    #print 'connection close'
 
 # There are no literals in input datasets
 def generate_edges(uri, graph_table_name, table_name, ac_edge_id):
