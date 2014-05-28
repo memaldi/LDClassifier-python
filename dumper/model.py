@@ -13,6 +13,7 @@ class Task(Base):
     end_time = Column(DateTime)
     paused_since = Column(DateTime)
     offset = Column(Integer)
+    status = Column(String)
 
 class Settings(Base):
     __tablename__ = 'settings'

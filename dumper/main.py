@@ -32,8 +32,6 @@ def show_tasks():
 
     print 'id | SPARQL endpoint | Named graph | Start time | End time | Paused since | Offset'
     for task in tasks:
-        #print task.id, task.endpoint, task.graph, str(task.start_time), str(task.end_time), task.offset
-        #print '%s' % (0)
         print '%s | %s | %s | %s | %s | %s | %s' % (task.id, task.endpoint, task.graph, task.start_time, task.end_time, task.paused_since, task.offset)
 
 def wizard():
