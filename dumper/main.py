@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from model import Settings, Base, Task
 from tasks import launch_task
+from datetime import datetime
 import sys
 
 engine = create_engine('sqlite:///db.sqlite', echo=True)
@@ -16,6 +17,7 @@ def create_task():
     task.endpoint = sparql_endpoint
     task.graph = graph
     task.offset = 0
+    task.start_time = datetime.now()
     session.add(task)
     session.commit()
     print 'Launching task...'
@@ -28,8 +30,11 @@ def clear_tasks():
 def show_tasks():
     tasks = session.query(Task)
 
+    print 'id | SPARQL endpoint | Named graph | Start time | End time | Paused since | Offset'
     for task in tasks:
-        print task
+        #print task.id, task.endpoint, task.graph, str(task.start_time), str(task.end_time), task.offset
+        #print '%s' % (0)
+        print '%s | %s | %s | %s | %s | %s | %s' % (task.id, task.endpoint, task.graph, task.start_time, task.end_time, task.paused_since, task.offset)
 
 def wizard():
     print 'Welcome to external SPARQL endpoint to Virtuoso dumper.'
