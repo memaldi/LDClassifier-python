@@ -19,4 +19,7 @@ class Settings(Base):
     __tablename__ = 'settings'
 
     id = Column(Integer, primary_key=True)
-    virtuoso_endpoint = Column(String)
+    host = Column(String)
+    port = Column(String)
+    user = Column(String)
+    password = Column(String)

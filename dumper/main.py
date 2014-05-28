@@ -30,9 +30,18 @@ def clear_tasks():
 def show_tasks():
     tasks = session.query(Task)
 
-    print 'id | SPARQL endpoint | Named graph | Start time | End time | Paused since | Offset'
+    print 'id | SPARQL endpoint | Named graph | Status | Start time | End time | Paused since | Offset'
     for task in tasks:
-        print '%s | %s | %s | %s | %s | %s | %s' % (task.id, task.endpoint, task.graph, task.start_time, task.end_time, task.paused_since, task.offset)
+        print '%s | %s | %s | %s | %s | %s | %s | %s' % (task.id, task.endpoint, task.graph, task.status, task.start_time, task.end_time, task.paused_since, task.offset)
+
+def resume_task():
+    id = raw_input('Task id: ')
+    task = session.query(Task).get(id)
+    if task.status != 'PAUSED':
+        print 'This task is not paused!'
+    else:
+        print 'Launching task...'
+        launch_task.delay(id)
 
 def wizard():
     print 'Welcome to external SPARQL endpoint to Virtuoso dumper.'
@@ -57,6 +66,7 @@ def wizard():
         print 'a) Create a new dump task'
         print 'b) Delete all tasks'
         print 'c) Show tasks'
+        print 'd) Resume task'
         print 'h) Exit'
         option = raw_input('Select your choice: ')
 
@@ -66,6 +76,8 @@ def wizard():
             clear_tasks()
         elif option == 'c':
             show_tasks()
+        elif option == 'd':
+            resume_task()
         elif option == 'h':
             print 'Bye!'
             sys.exit(0)
