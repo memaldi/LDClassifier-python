@@ -21,6 +21,8 @@ def create_task():
     print 'Launching task...'
     launch_task.delay(task.id)
 
+def clear_tasks():
+    tasks = session.query(Task).delete()
 
 def wizard():
     print 'Welcome to external SPARQL endpoint to Virtuoso dumper.'
@@ -43,12 +45,15 @@ def wizard():
 
     while not exit:
         print 'a) Create a new dump task'
-        print 'b) Exit'
+        print 'b) Delete all tasks'
+        print 'c) Exit'
         option = raw_input('Select your choice: ')
 
         if option == 'a':
             create_task()
         elif option == 'b':
+            clear_tasks()
+        elif option == 'c':
             print 'Bye!'
             sys.exit(0)
         else:
