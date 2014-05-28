@@ -1,12 +1,29 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from model import Settings, Base
+from model import Settings, Base, Task
+from tasks import launch_task
+import sys
+
+engine = create_engine('sqlite:///db.sqlite', echo=True)
+Session = sessionmaker(bind=engine)
+session = Session()
+
+def create_task():
+    print 'Creating a new task:'
+    sparql_endpoint = raw_input('Source SPARQL endpoint: ')
+    graph = raw_input('Named graph from Virtuoso in which data is going to be stored: ')
+    task = Task()
+    task.endpoint = sparql_endpoint
+    task.graph = graph
+    task.offset = 0
+    session.add(task)
+    session.commit()
+    print 'Launching task...'
+    launch_task.delay(task.id)
+
 
 def wizard():
     print 'Welcome to external SPARQL endpoint to Virtuoso dumper.'
-    engine = create_engine('sqlite:///db.sqlite', echo=True)
-    Session = sessionmaker(bind=engine)
-    session = Session()
 
     if not engine.dialect.has_table(engine.connect(), 'task'):
         Base.metadata.create_all(engine)
@@ -20,7 +37,22 @@ def wizard():
         settings.virtuoso_endpoint = virtuoso_endpoint
         session.add(settings)
         session.commit()
+        print ''
 
+    exit = False
+
+    while not exit:
+        print 'a) Create a new dump task'
+        print 'b) Exit'
+        option = raw_input('Select your choice: ')
+
+        if option == 'a':
+            create_task()
+        elif option == 'b':
+            print 'Bye!'
+            sys.exit(0)
+        else:
+            print 'Wrong option!'
 
 
 if  __name__ == '__main__':
