@@ -10,9 +10,12 @@ from os import listdir
 from os.path import isfile, join
 
 ACCEPT_LIST = ['application/rdf+xml', 'text/n3', 'text/plain', 'application/owl+xml']
-RDFLIB_CORRESPONDENCE = {'application/rdf+xml': 'xml', 'text/n3': 'n3', 'text/plain': 'nt', 'application/owl+xml': 'xml'}
+RDFLIB_CORRESPONDENCE = {'application/rdf+xml': 'xml', 'text/n3': 'n3', 'text/plain': 'nt',
+                         'application/owl+xml': 'xml'}
 BLACKLIST = []
-MATCHING_FUNCTIONS = ['substring_distance', 'equal_distance', 'levenshtein_distance', 'smoa_distance', 'basic_sinonym_distance']
+MATCHING_FUNCTIONS = ['substring_distance', 'equal_distance', 'levenshtein_distance', 'smoa_distance',
+                      'basic_sinonym_distance']
+
 
 def get_namespace(url):
     url = url.replace('<', '').replace('>', '').replace('"', '')
@@ -25,6 +28,7 @@ def get_namespace(url):
             new_url += chunk + '/'
         return new_url
 
+
 def get_entity_name(url):
     if '#' in url:
         return url.split('#')[1]
@@ -34,15 +38,18 @@ def get_entity_name(url):
         surl = url.split('/')
         return surl[len(surl) - 1]
 
+
 def distance(source, target, function):
     source_name = get_entity_name(source)
     target_name = get_entity_name(target)
     method = getattr(stringdistances, function)
     return method(source_name, target_name)
 
+
 def clean_label(label):
     label = label.replace('<', '').replace('>', '').replace('"', '')
     return label
+
 
 def generate_alignment(args):
     alignment_connection = happybase.Connection(args.hbase_host, port=args.hbase_port)
@@ -83,33 +90,46 @@ def generate_alignment(args):
     # Match Classes and properties
     # Match Classes
     print 'Matching classes, please wait...'
-    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, true)"):
-        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, true)"):
+    for source_key, source_data in alignment_table.scan(
+            filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, true)"):
+        for target_key, target_data in alignment_table.scan(
+                filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:Class', true, true)"):
             if source_key != target_key and get_namespace(source_key) != get_namespace(target_key):
                 for function in MATCHING_FUNCTIONS:
                     found = False
-                    for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'function', =, 'binary:%s', true, false)" % (source_key, target_key, function)):
-                        #print key, data
+                    for key, data in alignment_table.scan(
+                            filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'function', =, 'binary:%s', true, false)" % (
+                                    source_key, target_key, function)):
+                        # print key, data
                         found = True
                     if not found:
                         dist = distance(clean_label(source_key), clean_label(target_key), function)
-                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">f", dist)})
-                        #print source_key, target_key, function, dist
+                        alignment_table.put(str(uuid.uuid4()),
+                                            {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function,
+                                             'cf:dist': struct.pack(">f", dist)})
+                        # print source_key, target_key, function, dist
     # Match properties
     print 'Matching properties, please wait...'
-    for source_key, source_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, true)"):
-        for target_key, target_data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, true)"):
+    for source_key, source_data in alignment_table.scan(
+            filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, true)"):
+        for target_key, target_data in alignment_table.scan(
+                filter="SingleColumnValueFilter ('cf', 'type', =, 'binary:property', true, true)"):
             if source_key != target_key and get_namespace(source_key) != get_namespace(target_key):
                 for function in MATCHING_FUNCTIONS:
                     found = False
-                    for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'function', =, 'binary:%s', true, false)" % (source_key, target_key, function)):
+                    for key, data in alignment_table.scan(
+                            filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'target', =, 'binary:%s') AND SingleColumnValueFilter('cf', 'function', =, 'binary:%s', true, false)" % (
+                                    source_key, target_key, function)):
                         found = True
                     if not found:
                         dist = distance(clean_label(source_key), clean_label(target_key), function)
-                        alignment_table.put(str(uuid.uuid4()), {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function, 'cf:dist': struct.pack(">f", dist)})
-                        #print source_key, target_key, function, dist
+                        alignment_table.put(str(uuid.uuid4()),
+                                            {'cf:source': source_key, 'cf:target': target_key, 'cf:function': function,
+                                             'cf:dist': struct.pack(">f", dist)})
+                        # print source_key, target_key, function, dist
 
     connection.close()
+
 
 def reset(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
@@ -130,6 +150,7 @@ def reset(args):
     print ''
     print 'Done!'
 
+
 def create_table(table_name, connection, rewrite=False):
     if rewrite:
         try:
@@ -138,13 +159,14 @@ def create_table(table_name, connection, rewrite=False):
         except:
             pass
     try:
-        connection.create_table(table_name, {'graph': dict(), 'vertex': dict(), 'edge':dict()})
+        connection.create_table(table_name, {'graph': dict(), 'vertex': dict(), 'edge': dict()})
     except:
         pass
 
+
 def load(args):
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
-    subgraphs = [ f for f in listdir(args.graph_dir) if isfile(join(args.graph_dir,f)) and f.endswith('.g') ]
+    subgraphs = [f for f in listdir(args.graph_dir) if isfile(join(args.graph_dir, f)) and f.endswith('.g')]
     total = len(subgraphs)
     count = 1
     for subgraph in subgraphs:
@@ -159,11 +181,13 @@ def load(args):
                     table.put(struct.pack(">q", int(sl[1])), {'graph:type': 'v', 'vertex:label': sl[2]})
                 elif line.startswith('d'):
                     key = uuid.uuid4()
-                    table.put(str(key), {'graph:type': 'e', 'edge:source': struct.pack(">q", int(sl[1])), 'edge:target': struct.pack(">q", int(sl[2])), 'edge:label': sl[3]})
+                    table.put(str(key), {'graph:type': 'e', 'edge:source': struct.pack(">q", int(sl[1])),
+                                         'edge:target': struct.pack(">q", int(sl[2])), 'edge:label': sl[3]})
         count += 1
     connection.close()
     print ''
     print 'Done!'
+
 
 def match_edges(source_table_name, target_table_name, connection, alignment_connection, matching_threshold):
     source_labels = set()
@@ -171,9 +195,11 @@ def match_edges(source_table_name, target_table_name, connection, alignment_conn
     source_table = connection.table(source_table_name)
     target_table = connection.table(target_table_name)
     alignment_table = alignment_connection.table('alignments')
-    for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+    for source_key, source_data in source_table.scan(
+            filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
         source_labels.add(source_data['edge:label'])
-    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+    for target_key, target_data in target_table.scan(
+            filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
         target_labels.add(target_data['edge:label'])
     sim_dict = {}
     for source_label in source_labels:
@@ -182,7 +208,9 @@ def match_edges(source_table_name, target_table_name, connection, alignment_conn
                 similarity = 0
                 func_count = 0
                 dist = 0
-                for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s', true, false) AND SingleColumnValueFilter ('cf', 'target', =, 'binary:%s', true, false)" % (source_label, target_label)):
+                for key, data in alignment_table.scan(
+                        filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s', true, false) AND SingleColumnValueFilter ('cf', 'target', =, 'binary:%s', true, false)" % (
+                                source_label, target_label)):
                     func_count += 1
                     dist += struct.unpack(">f", data['cf:dist'])[0]
                 if dist > 0:
@@ -216,15 +244,18 @@ def match_edges(source_table_name, target_table_name, connection, alignment_conn
             vertex_replace_dict[max_sim_label] = common_id
     return vertex_replace_dict
 
+
 def match_vertexes(source_table_name, target_table_name, connection, alignment_connection, matching_threshold):
     source_labels = set()
     target_labels = set()
     source_table = connection.table(source_table_name)
     target_table = connection.table(target_table_name)
     alignment_table = alignment_connection.table('alignments')
-    for source_key, source_data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+    for source_key, source_data in source_table.scan(
+            filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
         source_labels.add(source_data['vertex:label'])
-    for target_key, target_data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+    for target_key, target_data in target_table.scan(
+            filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
         target_labels.add(target_data['vertex:label'])
 
     sim_dict = {}
@@ -234,7 +265,9 @@ def match_vertexes(source_table_name, target_table_name, connection, alignment_c
                 similarity = 0
                 func_count = 0
                 dist = 0
-                for key, data in alignment_table.scan(filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s', true, false) AND SingleColumnValueFilter ('cf', 'target', =, 'binary:%s', true, false)" % (source_label, target_label)):
+                for key, data in alignment_table.scan(
+                        filter="SingleColumnValueFilter ('cf', 'source', =, 'binary:%s', true, false) AND SingleColumnValueFilter ('cf', 'target', =, 'binary:%s', true, false)" % (
+                                source_label, target_label)):
                     func_count += 1
                     dist += struct.unpack(">f", data['cf:dist'])[0]
                 if dist > 0:
@@ -267,14 +300,15 @@ def match_vertexes(source_table_name, target_table_name, connection, alignment_c
             vertex_replace_dict[max_sim_label] = common_id
     return vertex_replace_dict
 
+
 def sim(args):
     if args.no_matching != None:
         return no_matching(args)
     else:
         return sim_matching(args)
 
-def no_matching(args):
 
+def no_matching(args):
     result_dict = {}
 
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
@@ -300,32 +334,42 @@ def no_matching(args):
                 target_len = 0
 
                 # Write vertexes in source graph
-                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                for key, data in source_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     label = data['vertex:label']
                     source_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
                     source_len += 1
                 # Write vertexes in target graph
-                for key, data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                for key, data in target_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     label = data['vertex:label']
                     target_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
                     target_len += 1
                 # Write edges in source graph
-                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+                for key, data in source_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
                     label = data['edge:label']
-                    source_file.write('d %s %s %s\n' % (struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0], label))
+                    source_file.write('d %s %s %s\n' % (
+                        struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0],
+                        label))
                     source_len += 1
                 # Write edges in target graph
-                for key, data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+                for key, data in target_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
                     label = data['edge:label']
-                    target_file.write('d %s %s %s\n' % (struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0], label))
+                    target_file.write('d %s %s %s\n' % (
+                        struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0],
+                        label))
                     target_len += 1
                 source_file.close()
                 target_file.close()
 
                 # Match graph using GM tool
-                proc = subprocess.Popen([args.subdue_dir + "/bin/gm", source_file_name, target_file_name], stdout=subprocess.PIPE)
+                proc = subprocess.Popen([args.subdue_dir + "/bin/gm", source_file_name, target_file_name],
+                                        stdout=subprocess.PIPE)
                 stdout = proc.stdout.read()
-                transformation_cost = int(stdout[stdout.find('Match Cost = ') + len('Match Cost = '):stdout.find('\n')].split('.')[0])
+                transformation_cost = int(
+                    stdout[stdout.find('Match Cost = ') + len('Match Cost = '):stdout.find('\n')].split('.')[0])
                 if source_len > target_len:
                     max_len = source_len
                 else:
@@ -342,8 +386,8 @@ def no_matching(args):
     print ''
     return result_dict
 
-def sim_matching(args):
 
+def sim_matching(args):
     result_dict = {}
 
     connection = happybase.Connection(args.hbase_host, port=args.hbase_port, table_prefix=args.prefix)
@@ -351,7 +395,7 @@ def sim_matching(args):
     alignment_table = alignment_connection.table('alignments')
     tables = connection.tables()
     source_tables = []
-    if args.source_dataset:
+    if args.source_dataset is not None:
         source_tables.append(args.source_dataset)
     else:
         source_tables = connection.tables()
@@ -367,9 +411,11 @@ def sim_matching(args):
             if source_table_name != target_table_name:
                 target_table = connection.table(target_table_name)
                 # Vertexes
-                vertex_replace_dict = match_vertexes(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
+                vertex_replace_dict = match_vertexes(source_table_name, target_table_name, connection,
+                                                     alignment_connection, args.matching_threshold)
                 # Edges
-                edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection, args.matching_threshold)
+                edge_replace_dict = match_edges(source_table_name, target_table_name, connection, alignment_connection,
+                                                args.matching_threshold)
                 # print vertex_replace_dict, edge_replace_dict
                 source_file_name = '%s/%s' % (args.tmp_dir, str(uuid.uuid4()))
                 source_file = open(source_file_name, 'w')
@@ -378,40 +424,50 @@ def sim_matching(args):
                 source_len = 0
                 target_len = 0
                 # Write vertexes in source graph
-                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                for key, data in source_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     label = data['vertex:label']
                     if label in vertex_replace_dict:
                         label = vertex_replace_dict[label]
                     source_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
                     source_len += 1
                 # Write vertexes in target graph
-                for key, data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
+                for key, data in target_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:v', true, false)"):
                     label = data['vertex:label']
                     if label in vertex_replace_dict:
                         label = vertex_replace_dict[label]
                     target_file.write('v %s %s\n' % (struct.unpack(">q", key)[0], label))
                     target_len += 1
                 # Write edges in source graph
-                for key, data in source_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+                for key, data in source_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
                     label = data['edge:label']
                     if label in edge_replace_dict:
                         label = edge_replace_dict[label]
-                    source_file.write('d %s %s %s\n' % (struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0], label))
+                    source_file.write('d %s %s %s\n' % (
+                        struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0],
+                        label))
                     source_len += 1
                 # Write edges in target graph
-                for key, data in target_table.scan(filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
+                for key, data in target_table.scan(
+                        filter="SingleColumnValueFilter ('graph', 'type', =, 'binary:e', true, false)"):
                     label = data['edge:label']
                     if label in edge_replace_dict:
                         label = edge_replace_dict[label]
-                    target_file.write('d %s %s %s\n' % (struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0], label))
+                    target_file.write('d %s %s %s\n' % (
+                        struct.unpack(">q", data['edge:source'])[0], struct.unpack(">q", data['edge:target'])[0],
+                        label))
                     target_len += 1
                 source_file.close()
                 target_file.close()
 
                 # Match graph using GM tool
-                proc = subprocess.Popen([args.subdue_dir + "/bin/gm", source_file_name, target_file_name], stdout=subprocess.PIPE)
+                proc = subprocess.Popen([args.subdue_dir + "/bin/gm", source_file_name, target_file_name],
+                                        stdout=subprocess.PIPE)
                 stdout = proc.stdout.read()
-                transformation_cost = int(stdout[stdout.find('Match Cost = ') + len('Match Cost = '):stdout.find('\n')].split('.')[0])
+                transformation_cost = int(
+                    stdout[stdout.find('Match Cost = ') + len('Match Cost = '):stdout.find('\n')].split('.')[0])
                 if source_len > target_len:
                     max_len = source_len
                 else:
@@ -428,6 +484,7 @@ def sim_matching(args):
     print result_dict
     return result_dict
 
+
 def test(args):
     test_list = []
     with open(args.validation_file) as f:
@@ -441,9 +498,9 @@ def test(args):
         matching_threshold_limit = 0.1
     else:
         matching_threshold_limit = 1.1
-
-    for subs_threshold in np.arange(0.5, 1.1, 0.1):
-        for matching_threshold in np.arange(0.5, matching_threshold_limit, 0.1):
+    args.source_dataset = None
+    for subs_threshold in np.arange(0.4, 1.1, 0.1):
+        for matching_threshold in np.arange(0.4, matching_threshold_limit, 0.1):
             result_dict = {}
             print '*' * 10
             print 'Configuration:'
@@ -456,9 +513,10 @@ def test(args):
                 for key2 in result_dict[key]:
                     similarity = result_dict[key][key2]
                     if similarity >= subs_threshold:
-                        if (key in test_list and key2 in test_list):
+                        if key in test_list and key2 in test_list:
                             tp += 1
-                        elif (key in test_list and key2 not in test_list) or (key not in test_list and key2 in test_list):
+                        elif (key in test_list and key2 not in test_list) or (
+                                        key not in test_list and key2 in test_list):
                             fp += 1
                             print '%s - %s (%s)' % (key, key2, similarity)
                     else:
@@ -480,6 +538,7 @@ def test(args):
     if args.o != None:
         f.close()
 
+
 parser = argparse.ArgumentParser(description='Match substructures.')
 parser.add_argument('-prefix', help='prefix for tables. Default: graph', default='graph')
 parser.add_argument('-hbase_host', help='HBase host address. Default: localhost', default='localhost')
@@ -492,26 +551,32 @@ subparsers = parser.add_subparsers(help='action to perform', dest='command')
 
 parser_load = subparsers.add_parser('load', help='load subgraphs into database')
 parser_load.add_argument('graph_dir', help='directory containing substructures extracted by SUBDUE')
-parser_load.add_argument('-rewrite', help='if a graph already exists, is replaced in database. Default: False', default=False, type=bool)
+parser_load.add_argument('-rewrite', help='if a graph already exists, is replaced in database. Default: False',
+                         default=False, type=bool)
 
 parser_reset = subparsers.add_parser('reset', help='drops all tables from the database')
 
-parser_generate_alignment = subparsers.add_parser('generate_alignment', help='generate alignments among classes and properties found in substructures')
+parser_generate_alignment = subparsers.add_parser('generate_alignment',
+                                                  help='generate alignments among classes and properties found in substructures')
 
 parser_similarities = subparsers.add_parser('sim', help='generate similarities among datasets')
-parser_similarities.add_argument('matching_threshold', help='value over is considered that two entities represent the same concept', type=float)
+parser_similarities.add_argument('matching_threshold',
+                                 help='value over is considered that two entities represent the same concept',
+                                 type=float)
 parser_similarities.add_argument('subdue_dir', help='location of SUBDUE')
-parser_similarities.add_argument('--no_matching', help='find simmilarities without applying ontology matching')
-parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp', default='/tmp')
-parser_similarities.add_argument('-source_dataset', help='source dataset. If no dataset given similarties among all datasets are generated.')
+parser_similarities.add_argument('--no_matching', help='find similarities without applying ontology matching')
+parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp',
+                                 default='/tmp')
+parser_similarities.add_argument('-source_dataset',
+                                 help='source dataset. If no dataset given similarties among all datasets are generated.')
 
 parser_similarities = subparsers.add_parser('test', help='generate evaluation test')
 parser_similarities.add_argument('subdue_dir', help='location of SUBDUE')
 parser_similarities.add_argument('validation_file', help='test file.')
-parser_similarities.add_argument('--no_matching', help='find simmilarities without applying ontology matching')
-parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp', default='/tmp')
+parser_similarities.add_argument('--no_matching', help='find similarities without applying ontology matching')
+parser_similarities.add_argument('-tmp_dir', help='dir in which SUBDUE input files are stored. Default: /tmp',
+                                 default='/tmp')
 parser_similarities.add_argument('-o', help='output file to store results')
-
 
 args = parser.parse_args()
 

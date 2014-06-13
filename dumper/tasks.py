@@ -15,21 +15,22 @@ Session = sessionmaker(bind=engine)
 session = Session()
 
 def virtuoso_insert(triple_list, task, settings):
-    try:
-        query = 'INSERT DATA INTO <%s> {' % task.graph
-        for triple in triple_list:
-            query += '%s\n' % triple
-        query += '}'
-        #print '%s?%s' % (settings.virtuoso_endpoint, urllib.urlencode({'query': query}))
-        #request = urllib2.Request('%s?%s' % (settings.virtuoso_endpoint, urllib.urlencode({'query': query})))
-        request = urllib2.Request('%s?query=%s' % (settings.virtuoso_endpoint, query))
-        response = urllib2.urlopen(request)
-        if response.code != 200:
-            print response.data()
-            raise Exception
-    except Exception as e:
-        print e
-        raise
+    pass
+    # try:
+    #     query = 'INSERT DATA INTO <%s> {' % task.graph
+    #     for triple in triple_list:
+    #         query += '%s\n' % triple
+    #     query += '}'
+    #     #print '%s?%s' % (settings.virtuoso_endpoint, urllib.urlencode({'query': query}))
+    #     #request = urllib2.Request('%s?%s' % (settings.virtuoso_endpoint, urllib.urlencode({'query': query})))
+    #     request = urllib2.Request('%s?query=%s' % (settings.virtuoso_endpoint, query))
+    #     response = urllib2.urlopen(request)
+    #     if response.code != 200:
+    #         print response.data()
+    #         raise Exception
+    # except Exception as e:
+    #     print e
+    #     raise
 
 @app.task
 def launch_task(task_id):
